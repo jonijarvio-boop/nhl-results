@@ -71,11 +71,11 @@ def get_standings():
         standings_html += f"<h3>{div_name}</h3><table border='1' cellspacing='0' cellpadding='4'>"
         standings_html += "<tr><th>Joukkue</th><th>O</th><th>V</th><th>T</th><th>P</th></tr>"
         for t in teams:
-            team_name = t["teamAbbrev"]["default"]
-            gp = t["gamesPlayed"]
-            wins = t["wins"]
-            losses = t["losses"]
-            points = t["points"]
+            team_name = t.get("team", {}).get("abbreviation", "N/A")  # Käytä oikeaa avainta joukkueen lyhenteelle
+            gp = t.get("gamesPlayed", 0)
+            wins = t.get("leagueRecord", {}).get("wins", 0)
+            losses = t.get("leagueRecord", {}).get("losses", 0)
+            points = t.get("points", 0)
             standings_html += f"<tr><td>{team_name}</td><td>{gp}</td><td>{wins}</td><td>{losses}</td><td>{points}</td></tr>"
         standings_html += "</table><br>"
     return standings_html
