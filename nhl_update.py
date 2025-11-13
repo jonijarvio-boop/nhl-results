@@ -57,8 +57,16 @@ def get_standings():
 
     standings_html = ""
     divisions = data.get("standings", [])
+    added_divisions = set()  # Joukko lisättyjen divisioonien seuraamiseen
+
     for div in divisions:
         div_name = div["divisionName"]
+
+        # Tarkista, onko divisioona jo lisätty
+        if div_name in added_divisions:
+            continue
+
+        added_divisions.add(div_name)  # Lisää divisioona joukkoon
         teams = div.get("teamRecords", [])
         standings_html += f"<h3>{div_name}</h3><table border='1' cellspacing='0' cellpadding='4'>"
         standings_html += "<tr><th>Joukkue</th><th>O</th><th>V</th><th>T</th><th>P</th></tr>"
