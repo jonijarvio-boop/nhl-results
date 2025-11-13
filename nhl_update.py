@@ -1,17 +1,17 @@
 import requests
 import datetime
-import os
 import locale
 
-# Asetetaan suomen kieli päivämäärien muotoiluun
+# Aseta päivämäärät suomeksi
 try:
     locale.setlocale(locale.LC_TIME, "fi_FI.UTF-8")
 except:
-    locale.setlocale(locale.LC_TIME, "")
+    # Windowsilla usein toimii tämä vaihtoehto
+    locale.setlocale(locale.LC_TIME, "fi_FI")
 
-# Joukkueet, joista haluat tulokset
 TEAMS = ["ANA", "CAR", "DAL", "MTL"]
 
+# --- Hakee tulokset ---
 def get_team_results():
     url = "https://api-web.nhle.com/v1/schedule/now"
     try:
@@ -19,42 +19,32 @@ def get_team_results():
         response.raise_for_status()
         data = response.json()
     except Exception as e:
-        print("⚠️ Virhe haettaessa pelidataa:", e)
-        return [], []
+        print("⚠️ Virhe haettaessa otteludataa:", e)
+        return []
 
     results = []
-    upcoming = []
-
-    for week in data.get("gameWeek", []):
+    game_weeks = data.get("gameWeek", [])
+    for week in game_weeks:
         for game in week.get("games", []):
             home = game["homeTeam"]["abbrev"]
             away = game["awayTeam"]["abbrev"]
 
-            # Näytä vain valitut joukkueet
             if home not in TEAMS and away not in TEAMS:
                 continue
 
-            game_state = game.get("gameState", "UNKNOWN")
-            game_time_str = game.get("startTimeUTC")
+            home_score = game.get("homeTeamScore", 0)
+            away_score = game.get("awayTeamScore", 0)
+            state = game.get("gameState", "Unknown")
 
-            if game_time_str:
-                game_time = datetime.datetime.fromisoformat(game_time_str.replace("Z", "+00:00"))
-                local_time = game_time.astimezone(datetime.timezone(datetime.timedelta(hours=2)))  # Suomen aika
-                formatted_time = local_time.strftime("%A %d.%m klo %H:%M")
-            else:
-                formatted_time = "Aika tuntematon"
+            # Muutetaan UTC-aika Suomen aikaan
+            game_time = datetime.datetime.fromisoformat(game["startTimeUTC"].replace("Z", "+00:00")) + datetime.timedelta(hours=2)
+            formatted_time = game_time.strftime("%A %d.%m.%Y klo %H:%M")
 
-            # Erota pelatut ja tulevat pelit
-            if game_state in ["FINAL", "OFF"]:
-                home_score = game.get("homeTeamScore", 0)
-                away_score = game.get("awayTeamScore", 0)
-                results.append(f"{away} {away_score} - {home_score} {home} ({game_state})")
-            elif game_state in ["FUT", "PRE", "LIVE", "CRIT"]:
-                upcoming.append(f"{away} @ {home} — {formatted_time}")
-
-    return results, upcoming
+            results.append(f"{away} {away_score} - {home_score} {home} ({state}, {formatted_time})")
+    return results
 
 
+# --- Hakee sarjataulukon ---
 def get_standings():
     url = "https://api-web.nhle.com/v1/standings/now"
     try:
@@ -65,54 +55,44 @@ def get_standings():
         print("⚠️ Virhe haettaessa sarjataulukkoa:", e)
         return []
 
-    standings = []
-
-    # Jokainen division sisältää joukkueita
-    for division in data.get("standings", []):
-        for team in division.get("teamRecords", []):
-            team_name = team["teamAbbrev"]["default"]
-            games_played = team.get("gamesPlayed", 0)
-            wins = team.get("wins", 0)
-            losses = team.get("losses", 0)
-            ot = team.get("otLosses", 0)
-            points = team.get("points", 0)
-            rank = team.get("leagueSequence", "-")
-
-            standings.append({
-                "rank": rank,
-                "team": team_name,
-                "games": games_played,
-                "wins": wins,
-                "losses": losses,
-                "ot": ot,
-                "points": points
-            })
-
-    # Järjestetään sijoituksen mukaan
-    standings.sort(key=lambda x: x["rank"])
-    return standings
+    standings_html = ""
+    divisions = data.get("standings", [])
+    for div in divisions:
+        div_name = div["divisionName"]
+        teams = div.get("teamRecords", [])
+        standings_html += f"<h3>{div_name}</h3><table border='1' cellspacing='0' cellpadding='4'>"
+        standings_html += "<tr><th>Joukkue</th><th>O</th><th>V</th><th>T</th><th>P</th></tr>"
+        for t in teams:
+            team_name = t["teamAbbrev"]["default"]
+            gp = t["gamesPlayed"]
+            wins = t["wins"]
+            losses = t["losses"]
+            points = t["points"]
+            standings_html += f"<tr><td>{team_name}</td><td>{gp}</td><td>{wins}</td><td>{losses}</td><td>{points}</td></tr>"
+        standings_html += "</table><br>"
+    return standings_html
 
 
-def generate_html(results, upcoming, standings):
-    today = datetime.date.today().strftime("%d.%m.%Y")
+# --- Luo HTML ---
+def generate_html(results, standings_html):
+    today = datetime.date.today().strftime("%A %d.%m.%Y")
     html_content = f"""
     <html>
     <head>
-        <title>NHL {today}</title>
         <meta charset="utf-8"/>
+        <title>NHL tulokset ja sarjataulukko</title>
         <style>
-            body {{ font-family: Arial, sans-serif; background: #0d1117; color: #e6edf3; }}
-            h1, h2 {{ color: #58a6ff; }}
-            ul {{ list-style: none; padding-left: 0; }}
-            li {{ margin-bottom: 6px; }}
-            table {{ border-collapse: collapse; width: 100%; max-width: 800px; margin-top: 10px; }}
-            th, td {{ border: 1px solid #30363d; padding: 6px 8px; text-align: center; }}
-            th {{ background-color: #161b22; color: #58a6ff; }}
-            tr:nth-child(even) {{ background-color: #161b22; }}
+            body {{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}
+            h1, h2, h3 {{ color: #003366; }}
+            table {{ border-collapse: collapse; margin-bottom: 20px; }}
+            th {{ background-color: #003366; color: white; }}
+            td, th {{ border: 1px solid #999; padding: 6px 10px; text-align: center; }}
+            li {{ margin-bottom: 4px; }}
         </style>
     </head>
     <body>
-        <h1>NHL-tulokset ({today})</h1>
+        <h1>NHL tulokset ja tulevat pelit</h1>
+        <h2>{today}</h2>
         <ul>
     """
 
@@ -120,69 +100,26 @@ def generate_html(results, upcoming, standings):
         for r in results:
             html_content += f"<li>{r}</li>"
     else:
-        html_content += "<li>Ei pelattuja otteluita tänään.</li>"
+        html_content += "<li>Ei otteluita tänään valituille joukkueille.</li>"
 
     html_content += """
         </ul>
-        <h2>Tulevat ottelut</h2>
-        <ul>
-    """
-
-    if upcoming:
-        for g in upcoming:
-            html_content += f"<li>{g}</li>"
-    else:
-        html_content += "<li>Ei tulevia otteluita.</li>"
-
-    html_content += """
-        </ul>
-        <h2>🧾 Sarjataulukko</h2>
-        <table>
-            <tr>
-                <th>Sijoitus</th>
-                <th>Joukkue</th>
-                <th>Ottelut</th>
-                <th>V</th>
-                <th>H</th>
-                <th>JA</th>
-                <th>Pisteet</th>
-            </tr>
-    """
-
-    if standings:
-        for s in standings:
-            html_content += f"""
-            <tr>
-                <td>{s['rank']}</td>
-                <td>{s['team']}</td>
-                <td>{s['games']}</td>
-                <td>{s['wins']}</td>
-                <td>{s['losses']}</td>
-                <td>{s['ot']}</td>
-                <td>{s['points']}</td>
-            </tr>
-            """
-    else:
-        html_content += "<tr><td colspan='7'>Ei sarjataulukkoa saatavilla.</td></tr>"
-
-    html_content += f"""
-        </table>
+        <hr>
+        <h2>Sarjataulukko</h2>
+    """ + standings_html + f"""
         <p>Päivitetty: {datetime.datetime.now().strftime("%H:%M:%S")}</p>
     </body>
     </html>
     """
 
-    output_file = "index.html"
-    with open(output_file, "w", encoding="utf-8") as f:
+    with open("index.html", "w", encoding="utf-8") as f:
         f.write(html_content)
-
-    print(f"✅ index.html luotu ({output_file})")
+    print("✅ index.html luotu (index.html)")
 
 
 if __name__ == "__main__":
-    results, upcoming = get_team_results()
-    standings = get_standings()
-    generate_html(results, upcoming, standings)
+    results = get_team_results()
+    standings_html = get_standings()
+    generate_html(results, standings_html)
     print("🎉 Valmis! Voit nyt puskea tiedoston GitHubiin.")
-
 
