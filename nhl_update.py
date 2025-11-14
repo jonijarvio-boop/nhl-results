@@ -22,6 +22,8 @@ def get_team_results():
         print("⚠️ Virhe haettaessa otteludataa:", e)
         return []
 
+   
+
     results = []
     game_weeks = data.get("gameWeek", [])
     for week in game_weeks:
