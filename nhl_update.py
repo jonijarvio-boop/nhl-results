@@ -109,7 +109,9 @@ def get_standings():
                 "team": abbrev,
                 "points": team.get("points", 0),
                 "wins": team.get("wins", 0),
-                "losses": team.get("losses", 0)
+                "losses": team.get("losses", 0),
+                "ot_wins": team.get("otWins", 0),
+                "ot_losses": team.get("otLosses", 0)
             })
     return rows
 
@@ -155,9 +157,9 @@ def generate_html():
     standings = get_standings()
     if standings:
         html += "<h1>Sarjataulukko</h1>"
-        html += "<table><tr><th>Joukkue</th><th>Pisteet</th><th>Voitot</th><th>Tappiot</th></tr>"
+        html += "<table><tr><th>Joukkue</th><th>Pisteet</th><th>Voitot</th><th>Tappiot</th><th>Jatkoaikavoitot</th><th>Jatkoaikatappiot</th></tr>"
         for row in standings:
-            html += f"<tr><td>{row['team']}</td><td>{row['points']}</td><td>{row['wins']}</td><td>{row['losses']}</td></tr>"
+            html += f"<tr><td>{row['team']}</td><td>{row['points']}</td><td>{row['wins']}</td><td>{row['losses']}</td><td>{row['ot_wins']}</td><td>{row['ot_losses']}</td></tr>"
         html += "</table>"
 
     html += f"<p>Päivitetty: {datetime.datetime.now().strftime('%H:%M:%S')}</p></body></html>"
